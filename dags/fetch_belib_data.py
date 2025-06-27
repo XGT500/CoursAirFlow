@@ -29,9 +29,9 @@ default_args = {
 }
 
 with DAG(
-    "fetch_belib_data_",
+    "fetch_belib_data",
     default_args=default_args,
-    description="Télécharge les données Belib et les sauvegarde sur mongoDB",
+    description="Télécharge les données Belib et les sauvegarde",
     schedule=None,  
 ) as dag:
 

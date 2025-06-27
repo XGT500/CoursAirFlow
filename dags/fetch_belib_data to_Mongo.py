@@ -8,31 +8,99 @@ from pymongo import MongoClient
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+# == Classes ===
+
+class BelibAPIClient:
+    def __init__(self, api_url):
+        self.api_url = api_url
+
+    def fetch_data(self, limit=20):
+        try:
+            # Afficher l'URL de l'API et la limite des enregistrements
+            print(f"Récupération des données depuis l'API : {self.api_url} avec une limite : {limit}")
+            response = requests.get(self.api_url, params={'limit': limit})
+            # Afficher le code de statut de la réponse
+            print(f"Code de statut de la réponse : {response.status_code}")
+            # Afficher le contenu de la réponse
+            print(f"Contenu de la réponse : {response.text}")
+
+            if response.status_code == 200:
+                json_data = response.json()
+                total_records = json_data.get('total_count', None)  # Obtenir le nombre total d'enregistrements
+                records = json_data.get('results', [])  # Obtenir les résultats
+                return records, total_records
+            else:
+                print(f"Échec de la récupération des données. Code de statut : {response.status_code}, Réponse : {response.text}")
+                return None, None
+        except Exception as e:
+            print(f"Une erreur s'est produite lors de la récupération des données de l'API : {e}")
+            return None, None
+
+class MongoDBPipeline:
+    def __init__(self):
+        # Charger les variables d'environnement
+        load_dotenv()
+
+        # Récupérer les informations de connexion depuis les variables d'environnement
+        self.username = os.getenv('MONGO_USERNAME')
+        self.password = os.getenv('MONGO_PASSWORD')
+        self.dbname = os.getenv('MONGO_DBNAME')
+        self.mongodb_uri = os.getenv('MONGO_URI')
+
+        # Vérifier si les informations de connexion sont disponibles
+        if not self.username or not self.password or not self.dbname or not self.mongodb_uri:
+            raise ValueError("Les informations de connexion MongoDB sont manquantes dans les variables d'environnement.")
+
+        # Initialiser la connexion à MongoDB
+        self.client = MongoClient(self.mongodb_uri)
+        self.db = self.client[self.dbname]
+        self.collection = self.db['belib']  # Nom de la collection
+
 # === Config ===
-API_URL = "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/belib-points-de-recharge-pour-vehicules-electriques-donnees-statiques/records?limit=20"
-DATA_DIR = os.path.join(os.getcwd(), "data")
-OUTPUT_FILE = os.path.join(DATA_DIR, "belib_data.json")
+load_dotenv()
 
 # === Tâche ===
 def fetch_and_save_data():
-    response = requests.get(API_URL)
-    response.raise_for_status()  # stop si erreur
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        f.write(response.text)
-    print(f"✅ Données sauvegardées dans : {OUTPUT_FILE}")
+    # Récupérer l'URL de l'API depuis le fichier .env
+    api_url = os.getenv("API_URL")
+    if not api_url:
+        print("L'API_URL n'est pas définie dans le fichier .env.")
+        return
+
+    # Créer une instance du client API
+    api_client = BelibAPIClient(api_url)
+
+    # Récupérer les données depuis l'API
+    data, total_records = api_client.fetch_data(limit=50)  # Exemple avec une limite de 50 enregistrements
+    if data:
+        print(f"{len(data)} enregistrements récupérés avec succès depuis l'API.")
+        if total_records is not None:
+            print(f"Total des enregistrements dans l'API : {total_records}")
+        else:
+            print("Le nombre total d'enregistrements n'est pas disponible.")
+
+        # Initialiser le pipeline MongoDB
+        mongo_pipeline = MongoDBPipeline()
+
+        # Insérer les données dans MongoDB
+        mongo_pipeline.insert_data_to_mongodb(data)
+
+        # Fermer la connexion MongoDB
+        mongo_pipeline.close_connection()
+    else:
+        print("Échec de la récupération des données depuis l'API.")
 
 # === DAG ===
 default_args = {
     "owner": "airflow",
     "depends_on_past": False,
-    "start_date": datetime(2024, 6, 15),
+    "start_date": datetime(2025, 6, 27),
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
 }
 
 with DAG(
-    "fetch_belib_data_",
+    "fetch_belib_data_V2_MONGO",
     default_args=default_args,
     description="Télécharge les données Belib et les sauvegarde sur mongoDB",
     schedule=None,  
@@ -42,3 +110,4 @@ with DAG(
         task_id="fetch_belib_api",
         python_callable=fetch_and_save_data,
     )
+
