@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
 import requests
 import os
+from dotenv import load_dotenv
+import os
+from pymongo import MongoClient
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
