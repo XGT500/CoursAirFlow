@@ -2,3 +2,10 @@
 #
 # Documentation for this file format can be found in "The Data Catalog"
 # Link: https://docs.kedro.org/en/stable/data/data_catalog.html
+
+raw_data:
+  type: json.JSONDataset  # ✅ au lieu de pandas.JSONDataset
+  filepath: data/01_raw/raw_data.json
+cleaned_data:
+  type: json.JSONDataset
+  filepath: data/02_intermediate/cleaned_data.json

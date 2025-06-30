@@ -112,7 +112,7 @@ with DAG(
     dag_id='belib_to_mongodb',
     default_args=default_args,
     description='Récupère les données Belib et les insère dans MongoDB toutes les 2 minutes',
-    schedule='*/5 * * * *',  # Chaque 30 minutes
+    schedule='*/5 * * * *',  # Chaque 5 minutes
     catchup=False,
     tags=["belib", "mongodb", "api"],
 ) as dag:
