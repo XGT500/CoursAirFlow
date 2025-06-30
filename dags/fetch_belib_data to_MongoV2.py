@@ -1,15 +1,10 @@
+from airflow import DAG
+from airflow.providers.standard.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import requests
-import os
 from dotenv import load_dotenv
 import os
 from pymongo import MongoClient
-
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-
-# == Classes ===
-
 class BelibAPIClient:
     def __init__(self, api_url):
         self.api_url = api_url
@@ -56,11 +51,26 @@ class MongoDBPipeline:
         self.db = self.client[self.dbname]
         self.collection = self.db['belib']  # Nom de la collection
 
-# === Config ===
-load_dotenv()
+    def insert_data_to_mongodb(self, data):
+        try:
+            if data:
+                # Insérer les données dans MongoDB
+                result = self.collection.insert_many(data)
+                print(f"{len(result.inserted_ids)} documents insérés dans MongoDB.")
+            else:
+                print("Aucune donnée à insérer.")
+        except Exception as e:
+            print(f"Erreur lors de l'insertion des données dans MongoDB : {e}")
 
-# === Tâche ===
-def fetch_and_save_data():
+    def close_connection(self):
+        # Fermer la connexion MongoDB
+        self.client.close()
+        print("Connexion à MongoDB fermée.")
+
+def main():
+    # Charger les variables d'environnement
+    load_dotenv()
+
     # Récupérer l'URL de l'API depuis le fichier .env
     api_url = os.getenv("API_URL")
     if not api_url:
@@ -90,24 +100,24 @@ def fetch_and_save_data():
     else:
         print("Échec de la récupération des données depuis l'API.")
 
-# === DAG ===
 default_args = {
-    "owner": "airflow",
-    "depends_on_past": False,
-    "start_date": datetime(2025, 6, 27),
-    "retries": 1,
-    "retry_delay": timedelta(minutes=5),
+    'owner': 'airflow',
+    'depends_on_past': False,
+    "start_date": datetime(2024, 6 ,27),
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
 }
 
 with DAG(
-    "fetch_belib_data_V2_MONGO",
+    dag_id='belib_to_mongodb',
     default_args=default_args,
-    description="Télécharge les données Belib et les sauvegarde sur mongoDB",
-    schedule=None,  
+    description='Récupère les données Belib et les insère dans MongoDB toutes les 2 minutes',
+    schedule='*/5 * * * *',  # Chaque 30 minutes
+    catchup=False,
+    tags=["belib", "mongodb", "api"],
 ) as dag:
 
-    fetch_task = PythonOperator(
-        task_id="fetch_belib_api",
-        python_callable=fetch_and_save_data,
+    task_run_pipeline = PythonOperator(
+        task_id="fetch_and_store_belib_data",
+        python_callable=main
     )
-
