@@ -48,3 +48,6 @@ attr = "pedro.__version__"
 [tool.setuptools.packages.find]
 where = [ "src",]
 namespaces = false
+
+[tool.kedro_telemetry]
+project_id = "9d48a7285e184c79b5413ed16f62dc1b"
