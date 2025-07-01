@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from datetime import datetime, timedelta
 from pathlib import Path
 from airflow import DAG
